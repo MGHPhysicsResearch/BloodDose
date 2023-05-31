@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environments
+env/
+venv/
+
+# Temp files
+*.DS_Store
+*~$*
+
+# Skip blood_path and dose field (too large)
+input/blood_path.npy
+input/patient/dose.npy
+
+# Ignore idea stuff
+.idea/
