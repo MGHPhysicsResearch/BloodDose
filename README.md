@@ -1,2 +1,4 @@
 # BloodDose
-Revised version of HEDOS
+BloodDose: a revised version of HEDOS
+
+
