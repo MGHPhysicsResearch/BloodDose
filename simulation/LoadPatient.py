@@ -1,10 +1,17 @@
+import copy
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from scipy.ndimage import gaussian_filter, binary_dilation
+
+from PlotDoseDistribution import plot_volumes
 
 
 def vol_to_gridpoints(vol, affine):
+    """
+    Given that we load volumes as numpy arrays, we need some info about their orientation in space.
+    """
     dims = np.array(vol.shape)
     center_voxel = (dims + 1) / 2
     center = np.dot(affine, np.append(center_voxel, 1))[:3]
@@ -18,14 +25,16 @@ def vol_to_gridpoints(vol, affine):
     return x, y, z
 
 
-def plot_volumes(volume_ref, volume, plot_slice=None, cmap_ref='jet', cmap='Greys_r'):
-    if plot_slice is None:
-        plot_slice = np.argmax(np.sum(volume, axis=(0, 1)))
-    plt.imshow(volume_ref[:, :, plot_slice], cmap=cmap_ref)
-    c_bar = plt.colorbar()
-    c_bar.set_label('Treatment dose at slice {} (Gy)'.format(plot_slice))
-    plt.imshow(volume[:, :, plot_slice], cmap=cmap, alpha=0.5)
-    plt.show()
+def create_sample_dose(tumor_seg, max_dose=60):
+    """
+    Just as an example, we create here some sample dose distribution in the same grid as the segmentations.
+    We use the tumor segmentation to make a somewhat sensible dose field.
+    """
+    sample_dose = copy.deepcopy(tumor_seg)
+    sample_dose = binary_dilation(sample_dose, iterations=40)
+    sample_dose = gaussian_filter(sample_dose.astype(float), sigma=20) * max_dose
+    print('Sample dose created.')
+    return sample_dose
 
 
 class Patient:
@@ -44,19 +53,41 @@ class Patient:
     def read_from_numpy(self, read_dir, organ_names, plot=True):
         """
         Read in segmentations which are assumed to be bundled in a .npz files.
-        Read in dose (which has been created artificially, just as an example).
+        Read in dose (or create one artificially, just as an example).
         Read in an affine transform which defines the coordinates of the voxels of the numpy arrays.
 
         This could/should be replaced by your own function, potentially reading in DICOM files of patients directly.
         """
         segs_loaded = np.load(os.path.join(read_dir, 'compressed_segs.npz'))
-        self.dose = np.load(os.path.join(read_dir, 'dose.npy'))
+        self.seg_organs = {organ_name: seg for organ_name, seg in segs_loaded.items() if organ_name in organ_names}
+        self._remove_overlap()
+
+        if os.path.isfile(os.path.join(read_dir, 'dose.npy')):
+            self.dose = np.load(os.path.join(read_dir, 'dose.npy'))
+        else:
+            self.dose = create_sample_dose(segs_loaded['tumor'])
         affine = np.load(os.path.join(read_dir, 'affine.npy'))
         self.gridpoints = vol_to_gridpoints(self.dose, affine)
-        for organ_name in organ_names:
-            self.seg_organs[organ_name] = segs_loaded[organ_name]
-            if plot:
-                plot_volumes(self.dose, self.seg_organs[organ_name])
+
+        if plot:
+            one_hot = np.stack(list(self.seg_organs.values()), axis=-1)
+            one_hot = np.concatenate([np.zeros_like(one_hot[..., 0][..., None]), one_hot], axis=-1)
+            labels = np.argmax(one_hot, axis=-1).astype(float)
+            labels /= np.amax(labels)
+            plot_volumes(self.dose, labels, cmap='viridis', scrollable=True)
+
+    def _remove_overlap(self):
+        """
+        Segmentations might be overlapping. Remove this overlap, otherwise we will count dose twice.
+        The order determines the hierarchy with its members going from low to high priority.
+        """
+        for i, (organ_name, seg) in enumerate(self.seg_organs.items()):
+            seg = (seg > 0.5).astype(int)
+            if i < (len(self.seg_organs) - 1):
+                mask = (sum(list(self.seg_organs.values())[i + 1:]) > 0.5).astype(int)
+                mask = (seg + mask == 2).astype(int)
+                seg -= mask
+            self.seg_organs[organ_name] = seg.astype(bool)
 
     def get_tumor_volume_fraction(self, tumor_bearing_organ, tumor):
         """

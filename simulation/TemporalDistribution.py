@@ -29,7 +29,7 @@ class TemporalDistribution:
         compartment_id = self.model.cum_volume.searchsorted(
             np.random.uniform(size=self.model.sample_size)).astype(np.uint8)
         self.path = self.model.chain.walk_v1(self.model.nr_steps, compartment_id)
-        # self.path = self.simulation.chain.walk_v2(self.simulation.nr_steps, compartment_id)
+        # self.path = self.model.chain.walk_v2(self.model.nr_steps, compartment_id)
         print(f'Time to generate temporal distribution: {time.process_time()-start_time:.2f} seconds')
 
     def temporal_volume(self):

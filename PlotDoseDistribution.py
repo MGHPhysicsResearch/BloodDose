@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 
 
 def plot_dose_distribution(blood_dose_total, dose_contributions, mean_blood_dose=None):
@@ -27,3 +28,64 @@ def plot_dose_distribution(blood_dose_total, dose_contributions, mean_blood_dose
 
     plt.show()
 
+
+def plot_volumes(volume_ref, volume, plot_slice=None, cmap_ref='Greys_r', cmap='Greys_r', scrollable=False):
+    """
+    Plotting method to visualize 3D volumes.
+    Either visualize a slice, or scroll through the entire volume in interactive mode.
+    """
+    if plot_slice is None:
+        plot_slice = np.argmax(np.sum(volume, axis=(0, 1)))
+
+    if scrollable:
+        backend = matplotlib.get_backend()
+        # you need interactive mode for scrolling, on Mac this works:
+        matplotlib.use("QtAgg")
+        fig, ax = plt.subplots(1, 1)
+        tracker = IndexTracker(ax, volume_ref, volume, plot_slice, cmap_ref, cmap)
+        fig.canvas.mpl_connect('scroll_event', tracker.onscroll)
+        plt.show()
+        # return to original backend.
+        matplotlib.use(backend)
+    else:
+        fig, ax = plt.subplots(1, 1)
+        img = ax.imshow(volume_ref[:, :, plot_slice], cmap=cmap_ref)
+        c_bar = fig.colorbar(img)
+        c_bar.set_label('Treatment dose at slice {} (Gy)'.format(plot_slice))
+        ax.imshow(volume[:, :, plot_slice], cmap=cmap, alpha=0.75)
+        plt.show()
+
+
+class IndexTracker(object):
+    def __init__(self, ax, X, Y, plot_slice, cmap_ref='Greys', cmap='Greys_r'):
+        self.ax = ax
+        self.X = X
+        self.Y = Y
+        self.plot_slice = plot_slice
+        _, _, self.slices = X.shape
+
+        self.im1 = ax.imshow(self.X[:, :, self.plot_slice], cmap=cmap_ref)
+        self.im2 = ax.imshow(self.Y[:, :, self.plot_slice], cmap=cmap, alpha=0.75)
+
+        c_bar = plt.colorbar(self.im1)
+        c_bar.set_label('Treatment dose (Gy)')
+
+        self.update()
+
+    def onscroll(self, event):
+        if event.button == 'up':
+            self.plot_slice = (self.plot_slice + 1) % self.slices
+        else:
+            self.plot_slice = (self.plot_slice - 1) % self.slices
+        self.update()
+
+    def update(self):
+        im1_data = self.im1.to_rgba(self.X[:, :, self.plot_slice], alpha=self.im1.get_alpha())
+        im2_data = self.im2.to_rgba(self.Y[:, :, self.plot_slice], alpha=self.im2.get_alpha())
+
+        self.im1.set_data(im1_data)
+        self.im2.set_data(im2_data)
+
+        self.ax.set_ylabel('slice %s' % self.plot_slice)
+        self.im1.axes.figure.canvas.draw()
+        self.im2.axes.figure.canvas.draw()

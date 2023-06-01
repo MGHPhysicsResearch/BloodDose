@@ -27,6 +27,7 @@ tumor_volume_fraction = 0.05
 relative_blood_density = 1.0
 relative_perfusion = 1.0
 organs = ['lung', 'heart', 'aorta', 'pulmonary_artery', 'superior_vena_cava', 'tumor']
+# organs = ['lung', 'heart', 'tumor']
 
 print('Gender: ', gender)
 if gender.lower() in ['m', 'male']:
@@ -69,5 +70,5 @@ treatment_parameters = {
 }
 # ============================================================== #
 
-# BloodDoseFromFields.blood_dose_distribution(simulation_parameters, patient_parameters, treatment_parameters)
-BloodDoseFromDVH.blood_dose_distribution(simulation_parameters, patient_parameters, treatment_parameters)
+BloodDoseFromFields.blood_dose_distribution(simulation_parameters, patient_parameters, treatment_parameters)
+# BloodDoseFromDVH.blood_dose_distribution(simulation_parameters, patient_parameters, treatment_parameters)
