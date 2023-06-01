@@ -17,6 +17,7 @@ class Chain:
         self.prob = copy.deepcopy(prob)
         self.size = prob.shape[0]
         self.dt = dt
+        self.progress = 0
 
         # list of weibull distributions to determine leave or stay
         self.comp = [Weibull(names[row], mtt[row], shape=k) for row in range(self.size)]
@@ -48,15 +49,18 @@ class Chain:
             # for each compartment, determine which particles leave and where they go to:
             for i, comp in enumerate(self.comp):
                 indices = np.where(c == i)[0]
-                change = indices[comp.is_leaving(t[indices], dt=self.dt)]
+                change_indices = indices[comp.is_leaving(t[indices], dt=self.dt)]
                 t[indices] += self.dt
-                if change.size > 0:
+                if change_indices.size > 0:
                     if self.options[i][0].size > 1:
-                        c[change] = np.random.choice(self.options[i][0], size=change.size, p=self.options[i][1])
+                        c[change_indices] = np.random.choice(self.options[i][0], size=change_indices.size,
+                                                             p=self.options[i][1])
                     else:
-                        c[change] = self.options[i][0][0]
-                    t[change] = 0
+                        c[change_indices] = self.options[i][0][0]
+                    t[change_indices] = 0
             path[:, step + 1] = np.uint8(c)
+            # print progress:
+            self._print_progress(n_steps, step)
         return path
 
     def walk_v2(self, n_steps, c):
@@ -88,16 +92,26 @@ class Chain:
                 indices = np.where(c == i)[0]
                 new_indices = indices[np.where(t[indices] == 0)[0]]
                 tt[new_indices] = comp.cdf_inv(np.random.uniform(size=new_indices.size))
-                change = indices[np.where(t[indices] > tt[indices])[0]]
+                change_indices = indices[np.where(t[indices] > tt[indices])[0]]
                 t[indices] += self.dt
-                if change.size > 0:
+                if change_indices.size > 0:
                     if self.options[i][0].size > 1:
-                        c[change] = np.random.choice(self.options[i][0], size=change.size, p=self.options[i][1])
+                        c[change_indices] = np.random.choice(self.options[i][0], size=change_indices.size,
+                                                             p=self.options[i][1])
                     else:
-                        c[change] = self.options[i][0][0]
-                    t[change] = 0
+                        c[change_indices] = self.options[i][0][0]
+                    t[change_indices] = 0
             path[:, step + 1] = np.uint8(c)
+            # print progress:
+            self._print_progress(n_steps, step)
         return path
+
+    def _print_progress(self, n_steps, step):
+        percentage_done = int(100 * step / (n_steps - 1))
+        if not self.progress == percentage_done:
+            if percentage_done % 10 == 0:
+                print('{:}% of blood flow simulation done.'.format(int(percentage_done)))
+                self.progress = percentage_done
 
 
 class MarkovChain:
